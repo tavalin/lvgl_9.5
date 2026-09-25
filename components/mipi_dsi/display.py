@@ -69,6 +69,8 @@ ColorBitness = display.display_ns.enum("ColorBitness")
 
 CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
+# Send the init sequence before DPI video starts. Default keeps the historical order.
+CONF_INIT_BEFORE_VIDEO = "init_before_video"
 
 DsiDriverChip("CUSTOM")
 
@@ -141,6 +143,7 @@ def model_schema(config):
             # Number of DPI framebuffers. 2 enables the zero-copy swap present
             # (LVGL fast path); 1 keeps the classic single-buffer copy flush.
             cv.Optional("framebuffers", default=1): cv.int_range(min=1, max=3),
+            model.option(CONF_INIT_BEFORE_VIDEO, False): cv.boolean,
         }
     )
     return cv.All(
@@ -216,6 +219,7 @@ async def to_code(config):
     cg.add(var.set_lanes(int(config[CONF_LANES])))
     cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
     cg.add(var.set_num_framebuffers(config["framebuffers"]))
+    cg.add(var.set_init_before_video(config[CONF_INIT_BEFORE_VIDEO]))
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))
