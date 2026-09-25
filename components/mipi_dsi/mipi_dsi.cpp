@@ -83,7 +83,7 @@ void MipiDsi::setup() {
                                            .num_fbs = this->num_fbs_,  // number of frame buffers to allocate
                                            .video_timing =
                                                {
-                                                   .h_size = this->width_,
+                                                   .h_size = this->dpi_width_ != 0 ? this->dpi_width_ : this->width_,
                                                    .v_size = this->height_,
                                                    .hsync_pulse_width = this->hsync_pulse_width_,
                                                    .hsync_back_porch = this->hsync_back_porch_,
@@ -461,11 +461,13 @@ void MipiDsi::dump_config() {
                 "\n  Buffer Color Depth: %d bit"
                 "\n  Display Pixel Mode: %d bit"
                 "\n  Invert Colors: %s"
-                "\n  Pixel Clock: %.1fMHz",
+                "\n  Pixel Clock: %.1fMHz"
+                "\n  DPI Line Width: %u",
                 this->model_, this->width_, this->height_, this->rotation_, this->lanes_, this->lane_bit_rate_,
                 this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
                 this->vsync_back_porch_, this->vsync_front_porch_, (3 - this->color_depth_) * 8, this->pixel_mode_,
-                YESNO(this->invert_colors_), this->pclk_frequency_);
+                YESNO(this->invert_colors_), this->pclk_frequency_,
+                static_cast<unsigned>(this->dpi_width_ != 0 ? this->dpi_width_ : this->width_));
   LOG_PIN("  Reset Pin ", this->reset_pin_);
 }
 }  // namespace esphome::mipi_dsi
