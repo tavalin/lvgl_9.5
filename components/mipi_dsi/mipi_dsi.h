@@ -62,6 +62,8 @@ class MipiDsi final : public display::Display {
   // Number of DPI framebuffers to allocate (1 = classic copy flush; 2 = enables
   // the zero-copy swap present used by the LVGL fast path).
   void set_num_framebuffers(uint8_t n) { this->num_fbs_ = n; }
+  // DPI line length sent over DSI when it differs from the visible width. 0 = width.
+  void set_dpi_width(size_t dpi_width) { this->dpi_width_ = dpi_width; }
 
   // --- Fast-present API (used by the LVGL fast path when num_fbs >= 2) ---
   // Number of DPI framebuffers actually allocated by the driver.
@@ -104,6 +106,7 @@ class MipiDsi final : public display::Display {
   std::vector<GPIOPin *> enable_pins_{};
   size_t width_{};
   size_t height_{};
+  size_t dpi_width_{0};
   uint16_t hsync_pulse_width_ = 10;
   uint16_t hsync_back_porch_ = 10;
   uint16_t hsync_front_porch_ = 20;

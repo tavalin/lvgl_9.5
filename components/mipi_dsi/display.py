@@ -69,7 +69,8 @@ ColorBitness = display.display_ns.enum("ColorBitness")
 
 CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
-
+# DPI line length on the DSI link when it exceeds the visible width. 0 = width.
+CONF_DPI_WIDTH = "dpi_width"
 DsiDriverChip("CUSTOM")
 
 # Import all models dynamically from the models package
@@ -141,6 +142,7 @@ def model_schema(config):
             # Number of DPI framebuffers. 2 enables the zero-copy swap present
             # (LVGL fast path); 1 keeps the classic single-buffer copy flush.
             cv.Optional("framebuffers", default=1): cv.int_range(min=1, max=3),
+            model.option(CONF_DPI_WIDTH, 0): cv.int_range(min=0, max=4095),
         }
     )
     return cv.All(
@@ -148,7 +150,6 @@ def model_schema(config):
         cv.only_on_esp32,
         only_on_variant(supported=[VARIANT_ESP32P4]),
     )
-
 
 @model_schema_extractor(MODELS, model_schema)
 def _config_schema(config):
@@ -161,6 +162,20 @@ def _config_schema(config):
     config = model_schema(config)(config)
     model = MODELS[config[CONF_MODEL].upper()]
     model.check_requirements()
+    dpi_width = config[CONF_DPI_WIDTH]
+    if dpi_width:
+        visible_width = model.get_dimensions(config)[0]
+        if dpi_width < visible_width:
+            raise cv.Invalid(
+                f"dpi_width ({dpi_width}) must be >= the visible width ({visible_width})",
+                [CONF_DPI_WIDTH],
+            )
+        if dpi_width != visible_width and config["framebuffers"] > 1:
+            raise cv.Invalid(
+                "framebuffers > 1 (zero-copy present) assumes framebuffer == visible size; "
+                "use framebuffers: 1 with dpi_width",
+                ["framebuffers"],
+            )
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
@@ -216,6 +231,8 @@ async def to_code(config):
     cg.add(var.set_lanes(int(config[CONF_LANES])))
     cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
     cg.add(var.set_num_framebuffers(config["framebuffers"]))
+    if config[CONF_DPI_WIDTH]:
+        cg.add(var.set_dpi_width(config[CONF_DPI_WIDTH]))
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))
