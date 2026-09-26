@@ -71,6 +71,9 @@ CONF_LANE_BIT_RATE = "lane_bit_rate"
 CONF_LANES = "lanes"
 # DPI line length on the DSI link when it exceeds the visible width. 0 = width.
 CONF_DPI_WIDTH = "dpi_width"
+# Send the init sequence before DPI video starts. Default keeps the historical order.
+CONF_INIT_BEFORE_VIDEO = "init_before_video"
+
 DsiDriverChip("CUSTOM")
 
 # Import all models dynamically from the models package
@@ -143,6 +146,7 @@ def model_schema(config):
             # (LVGL fast path); 1 keeps the classic single-buffer copy flush.
             cv.Optional("framebuffers", default=1): cv.int_range(min=1, max=3),
             model.option(CONF_DPI_WIDTH, 0): cv.int_range(min=0, max=4095),
+            model.option(CONF_INIT_BEFORE_VIDEO, False): cv.boolean,
         }
     )
     return cv.All(
@@ -233,6 +237,7 @@ async def to_code(config):
     cg.add(var.set_num_framebuffers(config["framebuffers"]))
     if config[CONF_DPI_WIDTH]:
         cg.add(var.set_dpi_width(config[CONF_DPI_WIDTH]))
+    cg.add(var.set_init_before_video(config[CONF_INIT_BEFORE_VIDEO]))
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))

@@ -123,10 +123,12 @@ void MipiDsi::setup() {
   }
   // need to know when the display is ready for SLPOUT command - will be 120ms after reset
   auto when = millis() + 120;
-  err = esp_lcd_panel_init(this->handle_);
-  if (err != ESP_OK) {
-    this->smark_failed(LOG_STR("esp_lcd_init failed"), err);
-    return;
+  if (!this->init_before_video_) {
+    err = esp_lcd_panel_init(this->handle_);
+    if (err != ESP_OK) {
+      this->smark_failed(LOG_STR("esp_lcd_init failed"), err);
+      return;
+    }
   }
   // Grab the DPI framebuffer pointers so callers (the LVGL fast path) can
   // render/PPA-rotate straight into a real scan-out buffer and present by swap.
@@ -158,45 +160,15 @@ void MipiDsi::setup() {
       g_fast_present.present = &mipi_dsi_present_trampoline;
     }
   }
-  size_t index = 0;
-  auto &vec = this->init_sequence_;
-  while (index != vec.size()) {
-    if (vec.size() - index < 2) {
-      this->mark_failed(LOG_STR("Malformed init sequence"));
+  if (!this->send_init_sequence_(when))
+    return;
+  if (this->init_before_video_) {
+    // With video running, DCS commands are sent in LP mode only inside blanking gaps.
+    // Panels with short porches may never drain the command FIFO, so start video last.
+    err = esp_lcd_panel_init(this->handle_);
+    if (err != ESP_OK) {
+      this->smark_failed(LOG_STR("esp_lcd_init failed"), err);
       return;
-    }
-    uint8_t cmd = vec[index++];
-    uint8_t x = vec[index++];
-    if (x == DELAY_FLAG) {
-      ESP_LOGD(TAG, "Delay %dms", cmd);
-      delay(cmd);
-    } else {
-      uint8_t num_args = x & 0x7F;
-      if (vec.size() - index < num_args) {
-        this->mark_failed(LOG_STR("Malformed init sequence"));
-        return;
-      }
-      if (cmd == SLEEP_OUT) {
-        // are we ready, boots?
-        int duration = when - millis();
-        if (duration > 0) {
-          delay(duration);
-        }
-      }
-      const auto *ptr = vec.data() + index;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-      char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
-#endif
-      ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, num_args,
-                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
-      err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, ptr, num_args);
-      if (err != ESP_OK) {
-        this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
-        return;
-      }
-      index += num_args;
-      if (cmd == SLEEP_OUT)
-        delay(10);
     }
   }
   this->io_lock_ = xSemaphoreCreateBinary();
@@ -211,6 +183,51 @@ void MipiDsi::setup() {
   }
 
   ESP_LOGCONFIG(TAG, "MIPI DSI setup complete");
+}
+
+bool MipiDsi::send_init_sequence_(uint32_t sleep_out_ready_ms) {
+  size_t index = 0;
+  auto &vec = this->init_sequence_;
+  while (index != vec.size()) {
+    if (vec.size() - index < 2) {
+      this->mark_failed(LOG_STR("Malformed init sequence"));
+      return false;
+    }
+    uint8_t cmd = vec[index++];
+    uint8_t x = vec[index++];
+    if (x == DELAY_FLAG) {
+      ESP_LOGD(TAG, "Delay %dms", cmd);
+      delay(cmd);
+    } else {
+      uint8_t num_args = x & 0x7F;
+      if (vec.size() - index < num_args) {
+        this->mark_failed(LOG_STR("Malformed init sequence"));
+        return false;
+      }
+      if (cmd == SLEEP_OUT) {
+        // are we ready, boots?
+        int duration = sleep_out_ready_ms - millis();
+        if (duration > 0) {
+          delay(duration);
+        }
+      }
+      const auto *ptr = vec.data() + index;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+      char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
+#endif
+      ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, num_args,
+                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
+      esp_err_t err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, ptr, num_args);
+      if (err != ESP_OK) {
+        this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
+        return false;
+      }
+      index += num_args;
+      if (cmd == SLEEP_OUT)
+        delay(10);
+    }
+  }
+  return true;
 }
 
 void MipiDsi::update() {
@@ -463,12 +480,14 @@ void MipiDsi::dump_config() {
                 "\n  Display Pixel Mode: %d bit"
                 "\n  Invert Colors: %s"
                 "\n  Pixel Clock: %.1fMHz"
-                "\n  DPI Line Width: %u",
+                "\n  DPI Line Width: %u"
+                "\n  Init Before Video: %s",
                 this->model_, this->width_, this->height_, this->rotation_, this->lanes_, this->lane_bit_rate_,
                 this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
                 this->vsync_back_porch_, this->vsync_front_porch_, (3 - this->color_depth_) * 8, this->pixel_mode_,
                 YESNO(this->invert_colors_), this->pclk_frequency_,
-                static_cast<unsigned>(this->dpi_width_ != 0 ? this->dpi_width_ : this->width_));
+                static_cast<unsigned>(this->dpi_width_ != 0 ? this->dpi_width_ : this->width_),
+                YESNO(this->init_before_video_));
   LOG_PIN("  Reset Pin ", this->reset_pin_);
 }
 }  // namespace esphome::mipi_dsi
