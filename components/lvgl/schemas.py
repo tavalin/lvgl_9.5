@@ -304,6 +304,9 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_STYLE_TRANSITION_PATH): cv.one_of(
             *df.ANIM_PATHS.keys(), lower=True
         ),
+        # Extends the touch hit area past the visible bounds on every side
+        # (lv_obj_set_ext_click_area), as in stock ESPHome's lvgl component.
+        cv.Optional(df.CONF_EXT_CLICK_AREA): lvalid.pixels,
     }
 )
 
@@ -312,6 +315,7 @@ OBJ_PROPERTIES = {
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLL_DIR,
     CONF_SCROLLBAR_MODE,
+    df.CONF_EXT_CLICK_AREA,
 }
 
 # Also allow widget specific properties for use in style definitions
