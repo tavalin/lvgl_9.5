@@ -13,7 +13,7 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, LocalVariable, lv
-from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, remap_property
+from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, WIDGET_TYPES, remap_property
 from .types import ObjUpdateAction, lv_obj_t, lv_style_t
 from .widgets import (
     Widget,
@@ -100,6 +100,9 @@ async def theme_to_code(config):
     if theme := config.get(CONF_THEME):
         add_lv_use(CONF_THEME)
         for w_name, style in theme.items():
+            # dark_mode is a theme flag (handled in to_code), not a widget style block.
+            if w_name not in WIDGET_TYPES:
+                continue
             # Work around Python 3.10 bug with nested async comprehensions
             # With Python 3.11 this could be simplified
             # TODO: Now that we require Python 3.11+, this can be updated to use nested comprehensions
