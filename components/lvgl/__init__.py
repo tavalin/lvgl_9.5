@@ -297,6 +297,8 @@ async def to_code(configs):
     # stricter alignment. The custom lv_malloc_core() already provides 64-byte
     # aligned heap allocations for the actual draw buffers on ESP32.
     df.add_define("LV_DRAW_BUF_ALIGN", "4")
+    if config_0.get(df.CONF_THEME, {}).get(df.CONF_DARK_MODE):
+        df.add_define("LV_THEME_DEFAULT_DARK", "1")
     use_ppa = config_0.get(CONF_USE_PPA, False)
     use_ppa_img = config_0.get(CONF_USE_PPA_IMG, False)
     use_fps_benchmark = config_0.get(CONF_USE_FPS_BENCHMARK, False)
@@ -704,6 +706,10 @@ def add_hello_world(config):
 def _theme_schema(value):
     return cv.Schema(
         {
+            # As in stock ESPHome: selects LVGL's dark default theme palette.
+            cv.Optional(df.CONF_DARK_MODE): cv.boolean,
+        }
+        | {
             cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
             for name, w in WIDGET_TYPES.items()
         }
