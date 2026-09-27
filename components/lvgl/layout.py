@@ -217,6 +217,18 @@ class GridLayout(Layout):
 
         if not isinstance(layout, dict) or layout.get(CONF_TYPE).lower() != TYPE_GRID:
             return None, {}
+        # As in stock ESPHome: container-level grid_cell_x_align/grid_cell_y_align are
+        # defaults for each child's own cell alignment (not the track alignment set by
+        # grid_column_align/grid_row_align). Only the integer rows/columns shorthand
+        # defaults to centre; explicit track lists keep LVGL's default.
+        x_default = (
+            "center" if isinstance(layout.get(CONF_GRID_ROWS), int) else cv.UNDEFINED
+        )
+        y_default = (
+            "center" if isinstance(layout.get(CONF_GRID_COLUMNS), int) else cv.UNDEFINED
+        )
+        x_align = layout.get(CONF_GRID_CELL_X_ALIGN, x_default)
+        y_align = layout.get(CONF_GRID_CELL_Y_ALIGN, y_default)
         return (
             {
                 cv.Required(CONF_TYPE): cv.one_of(TYPE_GRID, lower=True),
@@ -224,6 +236,8 @@ class GridLayout(Layout):
                 cv.Required(CONF_GRID_COLUMNS): [grid_spec],
                 cv.Optional(CONF_GRID_COLUMN_ALIGN): grid_alignments,
                 cv.Optional(CONF_GRID_ROW_ALIGN): grid_alignments,
+                cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
+                cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
                 cv.Optional(CONF_PAD_ROW): padding,
                 cv.Optional(CONF_PAD_COLUMN): padding,
                 cv.Optional(CONF_MULTIPLE_WIDGETS_PER_CELL, default=False): cv.boolean,
@@ -233,8 +247,8 @@ class GridLayout(Layout):
                 cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
                 cv.Optional(CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
                 cv.Optional(CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
-                cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
-                cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+                cv.Optional(CONF_GRID_CELL_X_ALIGN, default=x_align): grid_alignments,
+                cv.Optional(CONF_GRID_CELL_Y_ALIGN, default=y_align): grid_alignments,
             },
         )
 
